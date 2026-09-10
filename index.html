@@ -79,6 +79,7 @@ body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(
 .map-card-title { font-size: 13px; line-height: 1.35; color: var(--ink); font-weight: 500; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .map-card-dots { display: flex; gap: 2px; flex-wrap: wrap; }
 .map-card-dots span { width: 5px; height: 5px; border-radius: 50%; background: var(--ink-faint); opacity: .5; }
+.map-card-freq { font-family: var(--sans); font-size: 11px; font-weight: 600; color: var(--accent-deep); }
 .empty-msg { font-size: 13px; color: var(--ink-faint); padding: 1rem 0; }
 
 /* ---------- modal (detail popup) ---------- */
@@ -188,6 +189,7 @@ table.cov.show-cov .cov-col { display: table-cell; }
       <div class="map-controls">
         <input class="search" id="search" type="text" placeholder="Buscar por palabra o tema…">
         <div class="chips" id="prof-chips"></div>
+        <button class="sort-toggle" id="map-sort-toggle">Ordenar por frecuencia ↓</button>
         <button class="chip-clear" id="clear-filters" style="display:none;">Quitar filtros</button>
       </div>
     </div>
@@ -235,6 +237,7 @@ allProfs.sort();
 let activeProfs = new Set();
 let searchTerm = "";
 let selectedId = null;
+let sortByFrequency = false;
 
 const chipsEl = document.getElementById("prof-chips");
 allProfs.forEach(p => {
@@ -258,6 +261,12 @@ document.getElementById("clear-filters").addEventListener("click", () => {
 });
 document.getElementById("search").addEventListener("input", (e) => {
   searchTerm = e.target.value.trim().toLowerCase();
+  renderMap();
+});
+document.getElementById("map-sort-toggle").addEventListener("click", (e) => {
+  sortByFrequency = !sortByFrequency;
+  e.target.classList.toggle("is-active", sortByFrequency);
+  e.target.textContent = sortByFrequency ? "Orden temático" : "Ordenar por frecuencia ↓";
   renderMap();
 });
 
@@ -290,8 +299,14 @@ function renderMap() {
   wrap.innerHTML = "";
 
   [["Parte 1 — Diferenciales", DATA.part1_items], ["Parte 2 — Faltantes", DATA.part2_items]].forEach(([label, rawItems]) => {
-    const items = rawItems.map(r => allItems.find(x => x.id === r.id)).filter(matchesFilters);
+    let items = rawItems.map(r => allItems.find(x => x.id === r.id)).filter(matchesFilters);
     if (items.length === 0) return;
+    if (sortByFrequency) {
+      items = items.slice().sort((a, b) => {
+        const d = (b.mentions || []).length - (a.mentions || []).length;
+        return d !== 0 ? d : a.number - b.number;
+      });
+    }
     const h = document.createElement("h2");
     h.textContent = label;
     wrap.appendChild(h);
@@ -312,13 +327,17 @@ function renderMap() {
 function buildCard(it) {
   const card = document.createElement("button");
   card.className = "map-card" + (reviewed[it.id] ? " done" : "");
+  const count = (it.mentions || []).length;
+  const freqBadge = sortByFrequency
+    ? '<span class="map-card-freq">' + count + '</span>'
+    : '<div class="map-card-dots">' + (it.mentions || []).map(() => "<span></span>").join("") + '</div>';
   card.innerHTML =
     '<div class="map-card-top">' +
       '<span class="map-card-num">' + it.number + '</span>' +
       '<span class="map-card-check">' + (reviewed[it.id] ? "✓" : "") + '</span>' +
     '</div>' +
     '<span class="map-card-title">' + it.title + '</span>' +
-    '<div class="map-card-dots">' + (it.mentions || []).map(() => "<span></span>").join("") + '</div>';
+    freqBadge;
   card.addEventListener("click", () => openModal(it.id));
   return card;
 }
