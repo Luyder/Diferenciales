@@ -79,6 +79,7 @@ body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(
 .map-card-title { font-size: 13px; line-height: 1.35; color: var(--ink); font-weight: 500; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .map-card-dots { display: flex; gap: 2px; flex-wrap: wrap; }
 .map-card-dots span { width: 5px; height: 5px; border-radius: 50%; background: var(--ink-faint); opacity: .5; }
+.map-card-foot { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
 .map-card-freq { font-family: var(--sans); font-size: 11px; font-weight: 600; color: var(--accent-deep); }
 .empty-msg { font-size: 13px; color: var(--ink-faint); padding: 1rem 0; }
 
@@ -328,16 +329,15 @@ function buildCard(it) {
   const card = document.createElement("button");
   card.className = "map-card" + (reviewed[it.id] ? " done" : "");
   const count = (it.mentions || []).length;
-  const freqBadge = sortByFrequency
-    ? '<span class="map-card-freq">' + count + '</span>'
-    : '<div class="map-card-dots">' + (it.mentions || []).map(() => "<span></span>").join("") + '</div>';
+  const dots = '<div class="map-card-dots">' + (it.mentions || []).map(() => "<span></span>").join("") + '</div>';
+  const freqBadge = sortByFrequency ? '<span class="map-card-freq">' + count + '</span>' : '';
   card.innerHTML =
     '<div class="map-card-top">' +
       '<span class="map-card-num">' + it.number + '</span>' +
       '<span class="map-card-check">' + (reviewed[it.id] ? "✓" : "") + '</span>' +
     '</div>' +
     '<span class="map-card-title">' + it.title + '</span>' +
-    freqBadge;
+    '<div class="map-card-foot">' + dots + freqBadge + '</div>';
   card.addEventListener("click", () => openModal(it.id));
   return card;
 }
