@@ -189,7 +189,6 @@ table.cov.show-cov .cov-col { display: table-cell; }
       <p class="intro">Todas las categorías de un vistazo. Clic en una para ver el detalle.</p>
       <div class="map-controls">
         <input class="search" id="search" type="text" placeholder="Buscar por palabra o tema…">
-        <div class="chips" id="prof-chips"></div>
         <button class="sort-toggle" id="map-sort-toggle">Ordenar por frecuencia ↓</button>
         <button class="chip-clear" id="clear-filters" style="display:none;">Quitar filtros</button>
       </div>
@@ -231,37 +230,17 @@ DATA.part1_items.forEach(it => allItems.push(Object.assign({part: "Parte 1 — D
 DATA.part2_items.forEach(it => allItems.push(Object.assign({part: "Parte 2 — Faltantes"}, it)));
 const TOTAL = allItems.length;
 
-const allProfs = [];
-allItems.forEach(it => (it.mentions || []).forEach(m => { if (!allProfs.includes(m)) allProfs.push(m); }));
-allProfs.sort();
-
-let activeProfs = new Set();
 let searchTerm = "";
 let selectedId = null;
 let sortByFrequency = false;
 
-const chipsEl = document.getElementById("prof-chips");
-allProfs.forEach(p => {
-  const c = document.createElement("button");
-  c.className = "chip";
-  c.textContent = p.replace("Profesora ", "P").replace("Profesor ", "P");
-  c.title = p;
-  c.dataset.prof = p;
-  c.addEventListener("click", () => {
-    if (activeProfs.has(p)) activeProfs.delete(p); else activeProfs.add(p);
-    renderMap();
-  });
-  chipsEl.appendChild(c);
-});
-
 document.getElementById("clear-filters").addEventListener("click", () => {
-  activeProfs.clear();
   searchTerm = "";
   document.getElementById("search").value = "";
   renderMap();
 });
 document.getElementById("search").addEventListener("input", (e) => {
-  searchTerm = e.target.value.trim().toLowerCase();
+  searchTerm = e.target.value.trim();
   renderMap();
 });
 document.getElementById("map-sort-toggle").addEventListener("click", (e) => {
@@ -271,16 +250,30 @@ document.getElementById("map-sort-toggle").addEventListener("click", (e) => {
   renderMap();
 });
 
+function stripAccents(s) {
+  return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+// Word-stem search: matching on the first few letters of each search word
+// (accent-insensitive) means "currículo" also finds "curricular",
+// "currículum", etc., instead of requiring an exact substring match.
 function matchesFilters(it) {
-  if (activeProfs.size > 0) {
-    const mset = it.mentions || [];
-    let ok = false;
-    activeProfs.forEach(p => { if (mset.includes(p)) ok = true; });
-    if (!ok) return false;
-  }
   if (searchTerm) {
-    const hay = (it.title + " " + (it.html || "")).toLowerCase();
-    if (!hay.includes(searchTerm)) return false;
+    const hay = stripAccents((it.title + " " + (it.html || "")).toLowerCase());
+    const words = stripAccents(searchTerm.toLowerCase()).split(/\s+/).filter(Boolean);
+    const allMatch = words.every(w => {
+      const escaped = w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      if (w.length < 4) {
+        // short words (e.g. "IA", "TIC"): match as a whole word only, so
+        // they don't false-positive inside longer unrelated words
+        return new RegExp("\\b" + escaped + "\\b").test(hay);
+      }
+      // longer words: match by word-stem, so "currículo" also finds
+      // "curricular", "currículum", etc.
+      const stem = escaped.slice(0, Math.min(escaped.length, 6));
+      return new RegExp("\\b" + stem).test(hay);
+    });
+    if (!allMatch) return false;
   }
   return true;
 }
@@ -293,8 +286,7 @@ function updateProgress() {
 }
 
 function renderMap() {
-  document.querySelectorAll(".chip").forEach(c => c.classList.toggle("on", activeProfs.has(c.dataset.prof)));
-  document.getElementById("clear-filters").style.display = (activeProfs.size || searchTerm) ? "block" : "none";
+  document.getElementById("clear-filters").style.display = searchTerm ? "block" : "none";
 
   const wrap = document.getElementById("map-wrap");
   wrap.innerHTML = "";
